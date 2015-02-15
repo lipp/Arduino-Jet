@@ -53,9 +53,31 @@ void JetPeer::dispatch_message() {
   if (method) {
     String method_str(method->valuestring);
     for(int i=0; i<_state_cnt; ++i) {
-      if (method_str.equals(_states[i]->_path)) {
+      JetState& state = *_states[i];
+      if (method_str.equals(state._path)) {
         aJsonObject* params = aJson.getObjectItem(msg, "params");
-        _states[i]->_handler(aJson.getObjectItem(params, "value")->valueint, _states[i]->_context);
+        aJsonObject* resp = NULL;
+        aJsonObject* id = aJson.getObjectItem(msg, "id");
+        aJsonObject* value = aJson.getObjectItem(params, "value");
+        if (id) {
+          resp = aJson.createObject();
+          aJson.addItemToObject(resp, "id", aJson.createItem(id->valuestring));
+        }
+        bool ok = state._handler(value, resp, state._context);
+        if (id) {
+          if (ok) {
+            aJson.addBooleanToObject(resp, "result", true);
+          }
+          send(resp);
+        }
+        aJson.deleteItem(msg);
+        if (resp) {
+         aJson.deleteItem(resp);
+        }
+
+        if (ok) {
+          return change(state._path, value);
+        }
       }
     }
   }
@@ -68,13 +90,7 @@ void JetPeer::send(aJsonObject* msg) {
   aJson.print(msg, &stringStream);
   uint32_t len = strlen(_msg_buf);
   uint32_t len_net = htonl(len);
-  Serial.println(len);
-  Serial.println(len_net);
-  uint8_t *bytes = (uint8_t*)&len_net;
-  Serial.println(bytes[0]);
-  Serial.println(bytes[1]);
-  Serial.println(bytes[2]);
-  Serial.println(bytes[3]);
+  Serial.println(_msg_buf);
   _sock->write((const uint8_t*)&len_net, sizeof(len_net));
   _sock->write((const uint8_t*)_msg_buf, len);
 }
@@ -110,18 +126,21 @@ void JetPeer::register_state(JetState& state) {
   ++_state_cnt;
 }
 
-int default_set_handler(int val, void* context) {
-  Serial.print("set: "); Serial.println(val);
+bool default_set_handler(aJsonObject* value, aJsonObject* res, void* context) {
+  Serial.print("set: "); Serial.println(value->valueint);
+
+
+  return true;
 }
 
-JetState::JetState(JetPeer& peer, const char* path, int val)
+JetState::JetState(JetPeer& peer, const char* path, aJsonObject* value)
   : _peer(peer)
   , _path(path) {
     _peer.register_state(*this);
-    _peer.add(path, aJson.createItem(val));
+    _peer.add(path, value);
     _handler = default_set_handler;
 }
 
-void JetState::value(int val) {
-  _peer.change(_path, aJson.createItem(val));
+void JetState::value(aJsonObject* val) {
+  _peer.change(_path, val);
 }

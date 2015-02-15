@@ -8,12 +8,12 @@
 
 struct JetPeer;
 
-typedef int (*set_handler_t)(int val, void* context);
+typedef bool (*set_handler_t)(aJsonObject* val, aJsonObject* resp, void* context);
 
 struct JetState {
   friend class JetPeer;
-  JetState(JetPeer& peer, const char* path, int val);
-  void value(int value);
+  JetState(JetPeer& peer, const char* path, aJsonObject* val);
+  void value(aJsonObject* val);
   void set_handler(set_handler_t);
 private:
   const char* _path;
