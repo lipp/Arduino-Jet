@@ -7,7 +7,6 @@
 #include "Client.h"
 
 struct JetPeer;
-
 typedef bool (*set_handler_t)(aJsonObject* val, aJsonObject* resp, void* context);
 
 struct JetState {
@@ -31,12 +30,14 @@ private:
   void add(const char* path, aJsonObject* val);
   void change(const char* path, aJsonObject* val);
   void send(aJsonObject *msg);
+  void send(const char* msg);
   void dispatch_message(void);
   void register_state(JetState& state);
   Client* _sock;
   uint32_t _msg_len;
   int _msg_ptr;
   char _msg_buf[256];
+  char _change_buf[128];
   uint32_t _req_cnt;
   JetState* _states[3];
   int _state_cnt;
