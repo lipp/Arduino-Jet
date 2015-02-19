@@ -10,13 +10,33 @@
 
 #define ntohl(x) htonl(x)
 
+#define JET_RAM 256
+#define JET_STRING_RAM 128
+
+char string_buf[JET_STRING_RAM];
+
+char json_buf[JET_RAM];
+int json_ptr = 0;
+
+void* malloc_json(size_t len) {
+    if ((len + json_ptr) > JET_RAM) {
+      Serial.println(F("jet out of mem"));
+      return NULL;
+    }
+    void* ptr = (void*) (json_buf + json_ptr);
+    json_ptr += len;
+    return ptr;
+}
+
+void free_json(void* ptr) {
+
+}
+
 JetPeer::JetPeer()
   : _sock(0)
-  , _msg_len(0)
-  , _msg_ptr(0)
   , _req_cnt(0)
   , _state_cnt(0) {
-
+    aJson.setMemFuncs(malloc_json, free_json);
 }
 
 void JetPeer::set_client(Client& sock) {
@@ -24,27 +44,17 @@ void JetPeer::set_client(Client& sock) {
 }
 
 void JetPeer::loop(void) {
-  if (_msg_len == 0) {
-    while(_sock->available() && _msg_ptr < sizeof(uint32_t)) {
-      _msg_buf[_msg_ptr] = _sock->read();
-      ++_msg_ptr;
-    }
-    if (_msg_ptr == sizeof(uint32_t)) {
-      uint32_t len;
-      memcpy(&len, _msg_buf, sizeof(uint32_t));
-      _msg_len = ntohl(len);
-      _msg_ptr = 0;
-    }
-  }
-  if (_msg_len > 0) {
-    while(_sock->available() && _msg_ptr < _msg_len) {
-      _msg_buf[_msg_ptr] = _sock->read();
-      ++_msg_ptr;
-    }
-    if (_msg_ptr == _msg_len) {
-      _msg_buf[_msg_ptr] = '\0';
-      dispatch_message();
-    }
+  json_ptr = 0;
+  if (_sock->available()) {
+    _sock->read();
+    while (!_sock->available());
+    _sock->read();
+    while (!_sock->available());
+    _sock->read();
+    while (!_sock->available());
+    _sock->read();
+    dispatch_message();
+    json_ptr = 0;
   }
 }
 
@@ -52,12 +62,13 @@ prog_char jet_method[] PROGMEM = "method";
 prog_char jet_params[] PROGMEM = "params";
 prog_char jet_id[] PROGMEM = "id";
 prog_char jet_value[] PROGMEM = "value";
+prog_char jet_value_cat[] PROGMEM = "\",\"value\":";
 
 
-prog_char jet_resp_result[] PROGMEM = "{\"result\": true, \"id\":\"";
-prog_char jet_resp_error[] PROGMEM = "{\"error\": {\"message\": \"Invalid params\", \"code\": -32602}, \"id\":\"";
-prog_char jet_req_add[] PROGMEM = "{\"method\": \"add\", \"params\":{\"path\":\"";
-prog_char jet_req_change[] PROGMEM = "{\"method\": \"change\", \"params\":{\"path\":\"";
+prog_char jet_resp_result[] PROGMEM = "{\"result\":true,\"id\":\"";
+prog_char jet_resp_error[] PROGMEM = "{\"error\":{\"message\":\"Invalid params\",\"code\":-32602},\"id\":\"";
+prog_char jet_req_add[] PROGMEM = "{\"method\":\"add\",\"params\":{\"path\":\"";
+prog_char jet_req_change[] PROGMEM = "{\"method\":\"change\",\"params\":{\"path\":\"";
 
 
 PROGMEM const char *jet_strings[] = 	   // change "string_table" name to suit
@@ -69,7 +80,8 @@ PROGMEM const char *jet_strings[] = 	   // change "string_table" name to suit
   jet_method,
   jet_params,
   jet_id,
-  jet_value
+  jet_value,
+  jet_value_cat
 };
 
 enum jet_string_names {
@@ -80,16 +92,20 @@ enum jet_string_names {
   JET_METHOD,
   JET_PARAMS,
   JET_ID,
-  JET_VALUE
+  JET_VALUE,
+  JET_VALUE_CAT
 };
 
-
 void JetPeer::dispatch_message() {
-  Serial.println(_msg_buf);
-  Serial.print("Free RAM 1: "); Serial.println(getFreeRam(), DEC);
-  aJsonObject* msg = aJson.parse(_msg_buf);
-  Serial.print("Free RAM 2: "); Serial.println(getFreeRam(), DEC);
-  char* buf = _msg_buf + _msg_ptr;
+  aJsonStream input(_sock);
+  // reset json_buf, aJson.parse will create dyn objects ->malloc
+  json_ptr = 0;
+  aJsonObject* msg = aJson.parse(&input);
+  if (msg == NULL) {
+    Serial.println(F("Parse failed"));
+    return;
+  }
+  char* buf = (char*)string_buf;
   strcpy_P(buf, (char*)pgm_read_word(&(jet_strings[JET_METHOD])));
   aJsonObject* method = aJson.getObjectItem(msg, buf);
   if (method) {
@@ -99,12 +115,11 @@ void JetPeer::dispatch_message() {
       if (method_str.equals(state._path)) {
         strcpy_P(buf, (char*)pgm_read_word(&(jet_strings[JET_PARAMS])));
         aJsonObject* params = aJson.getObjectItem(msg, buf);
-        aJsonObject* resp = NULL;
         strcpy_P(buf, (char*)pgm_read_word(&(jet_strings[JET_ID])));
         aJsonObject* id = aJson.getObjectItem(msg, buf);
         strcpy_P(buf, (char*)pgm_read_word(&(jet_strings[JET_VALUE])));
         aJsonObject* value = aJson.getObjectItem(params, buf);
-        bool ok = state._handler(value, resp, state._context);
+        bool ok = state._handler(value, state._context);
         if (id) {
           if (ok) {
             strcpy_P(buf, (char*)pgm_read_word(&(jet_strings[JET_RESP_RESULT])));
@@ -114,69 +129,42 @@ void JetPeer::dispatch_message() {
           strcat(buf, id->valuestring);
           strcat(buf, "\"}");
           send(buf);
-        }Serial.print("Free RAM 3: "); Serial.println(getFreeRam(), DEC);
-        aJson.deleteItem(msg);
-        _msg_ptr = 0;
-        _msg_len = 0;
+        }
         if (ok) {
-          Serial.println("auto change");
           change(state._path, value);
         }
-        Serial.print("Free RAM 4: "); Serial.println(getFreeRam(), DEC);
         return;
       }
     }
   }
-  aJson.deleteItem(msg);
-  _msg_ptr = 0;
-  _msg_len = 0;
-  Serial.print("Free RAM 5: "); Serial.println(getFreeRam(), DEC);
 }
 
 void JetPeer::send(const char* msg) {
   uint32_t len = strlen(msg);
   uint32_t len_net = htonl(len);
-  Serial.println(msg);
+  //Serial.println(msg);
   _sock->write((const uint8_t*)&len_net, sizeof(len_net));
   _sock->write((const uint8_t*)msg, len);
 }
 
-
-void JetPeer::send(aJsonObject* msg) {
-  aJsonStringStream stringStream(NULL, _msg_buf, 256);
-  aJson.print(msg, &stringStream);
-  uint32_t len = strlen(_msg_buf);
-  uint32_t len_net = htonl(len);
-  Serial.println(_msg_buf);
-  _sock->write((const uint8_t*)&len_net, sizeof(len_net));
-  _sock->write((const uint8_t*)_msg_buf, len);
-}
-
-
-void JetPeer::add(const char* path, aJsonObject* val) {
-  char* buf = _msg_buf;
-  strcpy_P(buf, (char*)pgm_read_word(&(jet_strings[JET_REQ_ADD])));
+void JetPeer::value_request(const char* path, aJsonObject* val, int req_id) {
+  char* buf = string_buf;
+  strcpy_P(buf, (char*)pgm_read_word(&(jet_strings[req_id])));
   strcat(buf, path);
-  strcat(buf, "\",\"value\":");
+  strcat_P(buf, (char*)pgm_read_word(&(jet_strings[JET_VALUE_CAT])));
   int len_so_far = strlen(buf);
-  aJsonStringStream stringStream(NULL, _msg_buf + len_so_far, 256 - len_so_far);
+  aJsonStringStream stringStream(NULL, buf + len_so_far, JET_STRING_RAM - len_so_far);
   aJson.print(val, &stringStream);
   strcat(buf, "}}");
   send(buf);
-  aJson.deleteItem(val);
+}
+
+void JetPeer::add(const char* path, aJsonObject* val) {
+  value_request(path, val, JET_REQ_ADD);
 }
 
 void JetPeer::change(const char* path, aJsonObject* val) {
-  char* buf = _change_buf;
-  strcpy_P(buf, (char*)pgm_read_word(&(jet_strings[JET_REQ_CHANGE])));
-  strcat(buf, path);
-  strcat(buf, "\",\"value\":");
-  int len_so_far = strlen(buf);
-  aJsonStringStream stringStream(NULL, _msg_buf + len_so_far, 128 - len_so_far);
-  aJson.print(val, &stringStream);
-  strcat(buf, "}}");
-  send(buf);
-  aJson.deleteItem(val);
+  value_request(path, val, JET_REQ_CHANGE);
 }
 
 void JetPeer::register_state(JetState& state) {
@@ -184,11 +172,8 @@ void JetPeer::register_state(JetState& state) {
   ++_state_cnt;
 }
 
-bool default_set_handler(aJsonObject* value, aJsonObject* res, void* context) {
-  Serial.print("set: "); Serial.println(value->valueint);
-
-
-  return true;
+bool default_set_handler(aJsonObject* value, void* context) {
+  return false;
 }
 
 JetState::JetState(JetPeer& peer, const char* path, aJsonObject* value)
@@ -201,4 +186,9 @@ JetState::JetState(JetPeer& peer, const char* path, aJsonObject* value)
 
 void JetState::value(aJsonObject* val) {
   _peer.change(_path, val);
+}
+
+void JetState::set_handler(set_handler_t handler, void* context) {
+  _handler = handler;
+  _context = context;
 }
