@@ -11,31 +11,33 @@ details and a Live Control Center called ["Radar"](http://jetbus.io/radar.html).
 
 2. Install the node.js Daemon on your host machine or your "cloud" server:
 
-```sh
-$ npm install -g node-jet
-```
+  ```sh
+  $ npm install -g node-jet
+  ```
 
 3. Start the Jet Daemon:
 
-```sh
-$ jetd.js
-```
+  ```sh
+  $ jetd.js
+  ```
 
-The default ports of the Jet Daemon are 11123 (websocket) and 11122 (raw).
-Load the `JetExample` sketch.
+  The default ports of the Jet Daemon are 11123 (websocket) and 11122 (raw).
+  Load the `JetExample` sketch.
 
 4. Change the ip/server name to match the machine where the Daemon runs.
 
-```c++
-#define JET_DAEMON YOUR_IP
-```
+  ```c++
+  #define WLAN_SSID  "YOUR_SSID"
+  #define WLAN_PASS  "YOUR_PASSWORD"
+  #define JET_DAEMON "YOUR_IP"
+  ```
 
 5. Compile and upload the sketch (uses cc3000 Wifi)
 
 6. Open [Radar](http://jetbus.io/radar.html)
 
-Enter `ws://localhost:11123` as the Daemon url.
-Press "connect", press "fetch", watch your analog data.
+  Enter `ws://localhost:11123` as the Daemon url.
+  Press "connect", press "fetch", watch your analog data.
 
 # Memory
 
