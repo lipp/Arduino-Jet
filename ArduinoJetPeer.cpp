@@ -39,7 +39,7 @@ JetPeer::JetPeer()
     aJson.setMemFuncs(malloc_json, free_json);
 }
 
-void JetPeer::set_client(Client& sock) {
+void JetPeer::init(Client& sock) {
   _sock = &sock;
 }
 
@@ -111,7 +111,7 @@ void JetPeer::dispatch_message() {
   if (method) {
     String method_str(method->valuestring);
     for(int i=0; i<_state_cnt; ++i) {
-      JetState& state = *_states[i];
+      JetState& state = _states[i];
       if (method_str.equals(state._path)) {
         strcpy_P(buf, (char*)pgm_read_word(&(jet_strings[JET_PARAMS])));
         aJsonObject* params = aJson.getObjectItem(msg, buf);
@@ -167,25 +167,22 @@ void JetPeer::change(const char* path, aJsonObject* val) {
   value_request(path, val, JET_REQ_CHANGE);
 }
 
-void JetPeer::register_state(JetState& state) {
-  _states[_state_cnt] = &state;
-  ++_state_cnt;
-}
-
 bool default_set_handler(aJsonObject* value, void* context) {
   return false;
 }
 
-JetState::JetState(JetPeer& peer, const char* path, aJsonObject* value)
-  : _peer(peer)
-  , _path(path) {
-    _peer.register_state(*this);
-    _peer.add(path, value);
-    _handler = default_set_handler;
+JetState* JetPeer::state(const char* path, aJsonObject* val) {
+  JetState& state = _states[_state_cnt];
+  state._path = path;
+  state._handler = default_set_handler;
+  state._peer = this;
+  add(path, val);
+  _state_cnt++;
+  return &state;
 }
 
 void JetState::value(aJsonObject* val) {
-  _peer.change(_path, val);
+  _peer->change(_path, val);
 }
 
 void JetState::set_handler(set_handler_t handler, void* context) {
