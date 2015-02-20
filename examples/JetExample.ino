@@ -26,13 +26,16 @@ Adafruit_CC3000 cc3000 = Adafruit_CC3000(ADAFRUIT_CC3000_CS, ADAFRUIT_CC3000_IRQ
 uint32_t ip;
 
 Adafruit_CC3000_Client client;
+
+/* jet global vars: peer and states/methods */
 JetPeer peer;
 JetState* ledState;
 JetState* analog1State;
 JetState* analog2State;
 
-#define JET_DAEMON  "192.168.1.149"
+#define JET_DAEMON  "YOUR_IP"
 
+/* a jet state callback function example */
 bool set_led(aJsonObject* led_val, void* context)
 {
   if (led_val->valuebool) {
@@ -44,6 +47,11 @@ bool set_led(aJsonObject* led_val, void* context)
   }
   return true;
 }
+
+/* a jet fetch callback function example */
+void print_analog_1(const char* path, const char* event, aJsonObject* val, void* context) {
+  Serial.print(path);Serial.print(F(" "));Serial.print(event);Serial.print(F(" "));Serial.println(val->valueint);
+}
 /**************************************************************************/
 /*!
     @brief  Sets up the HW and the CC3000 module (called automatically
@@ -53,28 +61,19 @@ bool set_led(aJsonObject* led_val, void* context)
 void setup(void)
 {
   Serial.begin(115200);
-  Serial.println(F("Hello, CC3000!\n"));
+  Serial.println(F("Hello, Jet Folks!\n"));
   if (!cc3000.begin())
   {
     Serial.println(F("Unable to initialise the CC3000!"));
     while(1);
   }
 
+  Serial.println(F("creating network connection to daemon...\n"));
+
   /* Attempt to connect to an access point */
   char *ssid = WLAN_SSID;             /* Max 32 chars */
   Serial.print(F("\nAttempting to connect to ")); Serial.println(ssid);
 
-  /* NOTE: Secure connections are not available in 'Tiny' mode!
-     By default connectToAP will retry indefinitely, however you can pass an
-     optional maximum number of retries (greater than zero) as the fourth parameter.
-
-     ALSO NOTE: By default connectToAP will retry forever until it can connect to
-     the access point.  This means if the access point doesn't exist the call
-     will _never_ return!  You can however put in an optional maximum retry count
-     by passing a 4th parameter to the connectToAP function below.  This should
-     be a number of retries to make before giving up, for example 5 would retry
-     5 times and then fail if a connection couldn't be made.
-  */
   if (!cc3000.connectToAP(WLAN_SSID, WLAN_PASS, WLAN_SECURITY)) {
     Serial.println(F("Failed!"));
     while(1);
@@ -102,20 +101,31 @@ void setup(void)
     Serial.println("not connected");
   }
 
+  /* tell the peer which is the network client */
   peer.init(client);
 
-  ledState = peer.state("ARDU/led", aJson.createItem((bool)true));
-  ledState->set_handler(set_led);
+  /* create a state with a "set" callback function (set_led).
+    the initial value is "true".
+    */
+  ledState = peer.state("ARDU/led", aJson.createItem((bool)true), set_led);
 
+  /* create two states for the analog inputs. no "set" callback function is
+    provided, so this is read-only.
+    in the loop function (every 100ms) new values a read out and are posted.
+   */
   analog1State = peer.state("ARDU/analog1", aJson.createItem(analogRead(0)));
   analog2State = peer.state("ARDU/analog2", aJson.createItem(analogRead(1)));
-   // initialize digital pin 13 as an output.
-  //pinMode(13, OUTPUT);
+
+  /* create a fetcher which is subsribed to the "own" state ARDU/analog1.
+     every time the value changes, the print_analog_1 function is called.
+     this is not very useful but demonstrates the principle.
+   */
+  peer.fetch("ARDU/analog1", print_analog_1);
+
 }
 
 long previousMillis = 0;
-long interval = 50;
-
+long interval = 100;
 
 void loop(void)
 {
@@ -123,7 +133,6 @@ void loop(void)
   unsigned long currentMillis = millis();
 
   if(currentMillis - previousMillis > interval) {
-    // save the last time you blinked the LED
     previousMillis = currentMillis;
     analog1State->value(aJson.createItem(analogRead(0)));
     analog2State->value(aJson.createItem(analogRead(1)));
