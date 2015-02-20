@@ -6,11 +6,21 @@
 #include "aJson.h"
 #include "Client.h"
 
-#define JET_NUM_STATES 3
-#define JET_NUM_FETCHERS 3
+#ifndef JET_NUM_STATES
+  #define JET_NUM_STATES 3
+#endif
 
-#define JET_JSON_RAM 256
-#define JET_MESSAGE_RAM 128
+#ifndef JET_NUM_FETCHERS
+  #define JET_NUM_FETCHERS 3
+#endif
+
+#ifndef JET_JSON_RAM
+  #define JET_JSON_RAM 256
+#endif
+
+#ifndef JET_MESSAGE_RAM
+  #define JET_MESSAGE_RAM 128
+#endif
 
 struct JetPeer;
 typedef bool (*set_handler_t)(aJsonObject* val, void* context);

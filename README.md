@@ -26,12 +26,16 @@ Load the `JetExample` sketch.
 #define JET_DAEMON YOUR_IP
 ```
 
-5. Compile and upload the sketch
+5. Compile and upload the sketch (uses cc3000 Wifi)
 
 6. Open [Radar](http://jetbus.io/radar.html)
 
 Enter `ws://localhost:11123` as the Daemon url.
 Press "connect", press "fetch", watch your analog data.
+
+# Memory
+
+TODO doc defines / limits
 
 # API
 
