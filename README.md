@@ -47,9 +47,9 @@ which does not use malloc and free. DONT'T use aJson side-by-side!
 
 # API
 
-## JetPeer [class]
+## `JetPeer` [class]
 
-### JetPeer::init(Client& socket)
+### `void JetPeer::init(Client& socket)`
 
 Initializes a JetPeer instance with a Client reference. The socket must be already connected
 with the Jet Daemon (default port 11122). The concrete class of the Client can be
@@ -66,7 +66,7 @@ sock.connect(jet_daemon_ip, 11122); // default jet raw port
 peer.init(sock);
 ```
 
-### JetState* JetPeer::state(const char* path, aJsonObject* value, [set_handler_t set_callback], [void* set_context])
+### `JetState* JetPeer::state(const char* path, aJsonObject* value, [set_handler_t set_callback], [void* set_context])`
 
 Adds a state to the Daemon with the given `path` and the given `value`.
 The set_callback is optional. When specified, the set_callback will be invoked,
@@ -98,7 +98,26 @@ aJson.addItemToObject(val, "hello", aJson.createItem("world"));
 JetState* foo = peer.state("arduino/foo", val, setFoo);
 ```
 
-### JetFetcher* JetPeer::fetch(aJsonObject* fetch_expression, fetch_handler_t fetch_callback, [void* fetch_context])
+### `JetFetcher* JetPeer::fetch(const char* path, fetch_handler_t fetch_callback, [void* fetch_context])`
+
+Sets up a new simple path based fetch. The fetch_callback is called, whenever a relevent event
+(add/remove/change) takes place. With fetch, peers can wait for other (remote) states/methods,
+synchronize to "master values" or -more general - react to other stuff.
+
+The max number of fetchers is limited by JET_MAX_FETCHERS (default=3);
+
+```c++
+
+void print_event(const char* path, const char* event, aJsonObject* val, void* context) {
+  Serial.println(path);
+  Serial.println(event);
+  ...
+};
+
+peer.fetch("master/brightness", print_event);
+```
+
+### `JetFetcher* JetPeer::fetch(aJsonObject* fetch_expression, fetch_handler_t fetch_callback, [void* fetch_context])`
 
 Sets up a new fetch. The fetch_callback is called, whenever a relevent event
 (add/remove/change) takes place. With fetch, peers can wait for other (remote) states/methods,
@@ -130,41 +149,21 @@ aJson.addItemToObject(expr, "value", valueRule);
 peer.fetch(expr, print_event);
 ```
 
-### JetFetcher* JetPeer::fetch(const char* path, fetch_handler_t fetch_callback, [void* fetch_context])
-
-Sets up a new simple path based fetch. The fetch_callback is called, whenever a relevent event
-(add/remove/change) takes place. With fetch, peers can wait for other (remote) states/methods,
-synchronize to "master values" or -more general - react to other stuff.
-
-The max number of fetchers is limited by JET_MAX_FETCHERS (default=3);
-
-```c++
-
-void print_event(const char* path, const char* event, aJsonObject* val, void* context) {
-  Serial.println(path);
-  Serial.println(event);
-  ...
-};
-
-peer.fetch("master/brightness", print_event);
-```
-
-
-### void JetPeer::set(const char* path, aJsonObject* value)
+### `void JetPeer::set(const char* path, aJsonObject* value)`
 
 Sets another state to a new value. The other state's set_callback function will
 be invoked.
 
 NOTE: The response to the set request is not available.
 
-### void JetPeer::call(const char* path, aJsonObject* args)
+### `void JetPeer::call(const char* path, aJsonObject* args)`
 
 Calls a method specified by `path` with `args` (arguments). The `args` must be either
 of type JSON Object or JSON Array.
 
 NOTE: The response to the call request is not available.
 
-### JetMethod* JetPeer::method(const char*, call_handler_t call_handler)
+### `JetMethod* JetPeer::method(const char*, call_handler_t call_handler)`
 
 NOT IMPLEMENTED YET
 
