@@ -68,6 +68,8 @@ prog_char jet_resp_error[] PROGMEM = "{\"error\":{\"message\":\"Invalid params\"
 prog_char jet_req_add[] PROGMEM = "{\"method\":\"add\",\"params\":{\"path\":\"";
 prog_char jet_req_change[] PROGMEM = "{\"method\":\"change\",\"params\":{\"path\":\"";
 prog_char jet_req_fetch[] PROGMEM = "{\"method\":\"fetch\",\"params\":";
+prog_char jet_req_set[] PROGMEM = "{\"method\":\"set\",\"params\":";
+prog_char jet_req_call[] PROGMEM = "{\"method\":\"call\",\"params\":";
 
 
 PROGMEM const char *jet_strings[] = 	   // change "string_table" name to suit
@@ -83,7 +85,9 @@ PROGMEM const char *jet_strings[] = 	   // change "string_table" name to suit
   jet_value_cat,
   jet_req_fetch,
   jet_path,
-  jet_event
+  jet_event,
+  jet_req_set,
+  jet_req_call
 };
 
 enum jet_string_names {
@@ -98,7 +102,9 @@ enum jet_string_names {
   JET_VALUE_CAT,
   JET_REQ_FETCH,
   JET_PATH,
-  JET_EVENT
+  JET_EVENT,
+  JET_REQ_SET,
+  JET_REQ_CALL
 };
 
 void JetPeer::dispatch_message() {
@@ -190,6 +196,32 @@ void JetPeer::fetch_request(int fetch_id, aJsonObject* fetch_expr) {
   aJson.addItemToObject(fetch_expr, "id", aJson.createItem(fetch_id));
   aJsonStringStream stringStream(NULL, buf + len_so_far, JET_MESSAGE_RAM - len_so_far);
   aJson.print(fetch_expr, &stringStream);
+  strcat(buf, "}");
+  send(buf);
+}
+
+void JetPeer::set(const char* path, aJsonObject* value) {
+  char* buf = string_buf;
+  strcpy_P(buf, (char*)pgm_read_word(&(jet_strings[JET_REQ_SET])));
+  int len_so_far = strlen(buf);
+  aJsonObject* params = aJson.createObject();
+  aJson.addItemToObject(params, "path", aJson.createItem(path));
+  aJson.addItemToObject(params, "value", value);
+  aJsonStringStream stringStream(NULL, buf + len_so_far, JET_MESSAGE_RAM - len_so_far);
+  aJson.print(params, &stringStream);
+  strcat(buf, "}");
+  send(buf);
+}
+
+void JetPeer::call(const char* path, aJsonObject* args) {
+  char* buf = string_buf;
+  strcpy_P(buf, (char*)pgm_read_word(&(jet_strings[JET_REQ_CALL])));
+  int len_so_far = strlen(buf);
+  aJsonObject* params = aJson.createObject();
+  aJson.addItemToObject(params, "path", aJson.createItem(path));
+  aJson.addItemToObject(params, "args", args);
+  aJsonStringStream stringStream(NULL, buf + len_so_far, JET_MESSAGE_RAM - len_so_far);
+  aJson.print(params, &stringStream);
   strcat(buf, "}");
   send(buf);
 }
