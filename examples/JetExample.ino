@@ -40,10 +40,8 @@ bool set_led(aJsonObject* led_val, void* context)
 {
   if (led_val->valuebool) {
     Serial.println("LED ON");
-    //digitalWrite(13, HIGH);
   } else {
     Serial.println("LED OFF");
-    digitalWrite(13, LOW);
   }
   return true;
 }
