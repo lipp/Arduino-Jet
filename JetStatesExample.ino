@@ -1,14 +1,11 @@
-#include <aJSON.h>
-
 #include <SPI.h>
 
-
+#include <aJSON.h>
+#include <ArduinoJetPeer.h>
 
 #include <Adafruit_CC3000.h>
 #include <Adafruit_CC3000_Server.h>
-#include <ccspi.h>
-
-#include <ArduinoJetPeer.h>
+#include "utility/debug.h"
 
 
 // These are the interrupt and control pins
@@ -30,9 +27,23 @@ uint32_t ip;
 
 Adafruit_CC3000_Client client;
 JetPeer peer;
-JetState* testState;
+JetState* ledState;
+JetState* analog1State;
+JetState* analog2State;
 
 #define JET_DAEMON  "192.168.1.149"
+
+bool set_led(aJsonObject* led_val, void* context)
+{
+  if (led_val->valuebool) {
+    Serial.println("LED ON");
+    //digitalWrite(13, HIGH);
+  } else {
+    Serial.println("LED OFF");
+    digitalWrite(13, LOW);
+  }
+  return true;
+}
 /**************************************************************************/
 /*!
     @brief  Sets up the HW and the CC3000 module (called automatically
@@ -68,20 +79,14 @@ void setup(void)
     Serial.println(F("Failed!"));
     while(1);
   }
-   
-  Serial.println(F("Connected!"));
-  
-  /* Wait for DHCP to complete */
-  Serial.println(F("Request DHCP"));
+
   while (!cc3000.checkDHCP())
   {
-    delay(100); // ToDo: Insert a DHCP timeout!
+    delay(100);
   }  
-
- 
-   ip = 0;
-  // Try looking up the website's IP address
- 
+  
+  ip = 0;
+  
   while (ip == 0) {
     if (! cc3000.getHostByName(JET_DAEMON, &ip)) {
       Serial.println(F("Couldn't resolve!"));
@@ -97,42 +102,36 @@ void setup(void)
     Serial.println("not connected");
   }
   
-  peer.set_client(client);
-  testState = new JetState(peer, "ARDU/test", 123);
+  peer.init(client);
   
+  ledState = peer.state("ARDU/led", aJson.createItem((bool)true));
+  ledState->set_handler(set_led);
+  
+  analog1State = peer.state("ARDU/analog1", aJson.createItem(analogRead(0)));
+  analog2State = peer.state("ARDU/analog2", aJson.createItem(analogRead(1))); 
+   // initialize digital pin 13 as an output.
+  //pinMode(13, OUTPUT);
 }
+
+long previousMillis = 0;  
+long interval = 50;
+
 
 void loop(void)
 {
   peer.loop();
-  delay(1000);
+  unsigned long currentMillis = millis();
+ 
+  if(currentMillis - previousMillis > interval) {
+    // save the last time you blinked the LED 
+    previousMillis = currentMillis;
+    analog1State->value(aJson.createItem(analogRead(0)));
+    analog2State->value(aJson.createItem(analogRead(1)));
+    //Serial.print("Free RAM: "); Serial.println(getFreeRam(), DEC);
+  } 
+
+  delay(10);
 }
 
 
-
-/**************************************************************************/
-/*!
-    @brief  Tries to read the IP address and other connection details
-*/
-/**************************************************************************/
-bool displayConnectionDetails(void)
-{
-  uint32_t ipAddress, netmask, gateway, dhcpserv, dnsserv;
-  
-  if(!cc3000.getIPAddress(&ipAddress, &netmask, &gateway, &dhcpserv, &dnsserv))
-  {
-    Serial.println(F("Unable to retrieve the IP Address!\r\n"));
-    return false;
-  }
-  else
-  {
-    Serial.print(F("\nIP Addr: ")); cc3000.printIPdotsRev(ipAddress);
-    Serial.print(F("\nNetmask: ")); cc3000.printIPdotsRev(netmask);
-    Serial.print(F("\nGateway: ")); cc3000.printIPdotsRev(gateway);
-    Serial.print(F("\nDHCPsrv: ")); cc3000.printIPdotsRev(dhcpserv);
-    Serial.print(F("\nDNSserv: ")); cc3000.printIPdotsRev(dnsserv);
-    Serial.println();
-    return true;
-  }
-}
 
