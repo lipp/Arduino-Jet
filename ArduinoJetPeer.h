@@ -55,6 +55,7 @@ struct JetPeer {
   void loop(void);
   JetState* state(const char* path, aJsonObject* val, set_handler_t handler = NULL, void *context = NULL);
   JetFetcher* fetch(const char* path, fetch_handler_t handler, void* context = NULL);
+  JetFetcher* fetch(aJsonObject* expr, fetch_handler_t handler, void* context = NULL);
   void set(const char* path, aJsonObject* value);
   void call(const char* path, aJsonObject* args);
 private:

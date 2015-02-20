@@ -226,19 +226,22 @@ void JetPeer::call(const char* path, aJsonObject* args) {
   send(buf);
 }
 
-JetFetcher* JetPeer::fetch(const char* path, fetch_handler_t handler, void* context) {
+JetFetcher* JetPeer::fetch(aJsonObject* expr, fetch_handler_t handler, void* context) {
   JetFetcher& fetcher = _fetchers[_fetch_cnt];
   fetcher._handler = handler;
   fetcher._context = context;
-  aJsonObject* fetch_expr = aJson.createObject();
-  aJsonObject* path_obj = aJson.createObject();
-  aJson.addItemToObject(path_obj, "equals", aJson.createItem(path));
-  aJson.addItemToObject(fetch_expr, "path", path_obj);
-  fetch_request(_fetch_cnt, fetch_expr);
+  fetch_request(_fetch_cnt, expr);
   _fetch_cnt++;
   return &fetcher;
 }
 
+JetFetcher* JetPeer::fetch(const char* path, fetch_handler_t handler, void* context) {
+  aJsonObject* fetch_expr = aJson.createObject();
+  aJsonObject* path_obj = aJson.createObject();
+  aJson.addItemToObject(path_obj, "equals", aJson.createItem(path));
+  aJson.addItemToObject(fetch_expr, "path", path_obj);
+  return fetch(fetch_expr, handler, context);
+}
 
 bool default_set_handler(aJsonObject* value, void* context) {
   return false;
