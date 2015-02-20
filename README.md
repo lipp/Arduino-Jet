@@ -1,6 +1,10 @@
 # Arduino-Jet
 Jet Peer lib for Arduino (http://jetbus.io).
 
+Arduino-Jet enables you to easily integrate distributed web-capable realtime
+communication with your Arduino. See [Jet Homepage](http://jetbus.io) for more
+details and a Live Control Center called ["Radar"](http://jetbus.io/radar.html).
+
 # Setup
 
 1. Clone this repo to your Arduino/libraries folder (on OSX ~/Documents/Arduino/libraries).
