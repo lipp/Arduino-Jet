@@ -1,6 +1,4 @@
-#include <Ehternet/util.h>
 #include <avr/pgmspace.h>
-#include "utility/debug.h"
 #include "ArduinoJetPeer.h"
 
 #define htonl(x) ( ((x)<<24 & 0xFF000000UL) | \
@@ -10,16 +8,13 @@
 
 #define ntohl(x) htonl(x)
 
-#define JET_RAM 256
-#define JET_STRING_RAM 128
+char string_buf[JET_MESSAGE_RAM];
 
-char string_buf[JET_STRING_RAM];
-
-char json_buf[JET_RAM];
+char json_buf[JET_JSON_RAM];
 int json_ptr = 0;
 
 void* malloc_json(size_t len) {
-    if ((len + json_ptr) > JET_RAM) {
+    if ((len + json_ptr) > JET_JSON_RAM) {
       Serial.println(F("jet out of mem"));
       return NULL;
     }
@@ -35,7 +30,8 @@ void free_json(void* ptr) {
 JetPeer::JetPeer()
   : _sock(0)
   , _req_cnt(0)
-  , _state_cnt(0) {
+  , _state_cnt(0)
+  , _fetch_cnt(0) {
     aJson.setMemFuncs(malloc_json, free_json);
 }
 
@@ -62,6 +58,8 @@ prog_char jet_method[] PROGMEM = "method";
 prog_char jet_params[] PROGMEM = "params";
 prog_char jet_id[] PROGMEM = "id";
 prog_char jet_value[] PROGMEM = "value";
+prog_char jet_path[] PROGMEM = "path";
+prog_char jet_event[] PROGMEM = "event";
 prog_char jet_value_cat[] PROGMEM = "\",\"value\":";
 
 
@@ -69,6 +67,7 @@ prog_char jet_resp_result[] PROGMEM = "{\"result\":true,\"id\":\"";
 prog_char jet_resp_error[] PROGMEM = "{\"error\":{\"message\":\"Invalid params\",\"code\":-32602},\"id\":\"";
 prog_char jet_req_add[] PROGMEM = "{\"method\":\"add\",\"params\":{\"path\":\"";
 prog_char jet_req_change[] PROGMEM = "{\"method\":\"change\",\"params\":{\"path\":\"";
+prog_char jet_req_fetch[] PROGMEM = "{\"method\":\"fetch\",\"params\":";
 
 
 PROGMEM const char *jet_strings[] = 	   // change "string_table" name to suit
@@ -81,7 +80,10 @@ PROGMEM const char *jet_strings[] = 	   // change "string_table" name to suit
   jet_params,
   jet_id,
   jet_value,
-  jet_value_cat
+  jet_value_cat,
+  jet_req_fetch,
+  jet_path,
+  jet_event
 };
 
 enum jet_string_names {
@@ -93,7 +95,10 @@ enum jet_string_names {
   JET_PARAMS,
   JET_ID,
   JET_VALUE,
-  JET_VALUE_CAT
+  JET_VALUE_CAT,
+  JET_REQ_FETCH,
+  JET_PATH,
+  JET_EVENT
 };
 
 void JetPeer::dispatch_message() {
@@ -108,7 +113,7 @@ void JetPeer::dispatch_message() {
   char* buf = (char*)string_buf;
   strcpy_P(buf, (char*)pgm_read_word(&(jet_strings[JET_METHOD])));
   aJsonObject* method = aJson.getObjectItem(msg, buf);
-  if (method) {
+  if (method && method->type == aJson_String) {
     String method_str(method->valuestring);
     for(int i=0; i<_state_cnt; ++i) {
       JetState& state = _states[i];
@@ -136,6 +141,17 @@ void JetPeer::dispatch_message() {
         return;
       }
     }
+  } else if (method && method->type == aJson_Int) {
+    JetFetcher& fetcher = _fetchers[method->valueint];
+    strcpy_P(buf, (char*)pgm_read_word(&(jet_strings[JET_PARAMS])));
+    aJsonObject* params = aJson.getObjectItem(msg, buf);
+    strcpy_P(buf, (char*)pgm_read_word(&(jet_strings[JET_VALUE])));
+    aJsonObject* value = aJson.getObjectItem(params, buf);
+    strcpy_P(buf, (char*)pgm_read_word(&(jet_strings[JET_PATH])));
+    aJsonObject* path = aJson.getObjectItem(params, buf);
+    strcpy_P(buf, (char*)pgm_read_word(&(jet_strings[JET_EVENT])));
+    aJsonObject* event = aJson.getObjectItem(params, buf);
+    fetcher._handler(path->valuestring, event->valuestring, value, fetcher._context);
   }
 }
 
@@ -153,7 +169,7 @@ void JetPeer::value_request(const char* path, aJsonObject* val, int req_id) {
   strcat(buf, path);
   strcat_P(buf, (char*)pgm_read_word(&(jet_strings[JET_VALUE_CAT])));
   int len_so_far = strlen(buf);
-  aJsonStringStream stringStream(NULL, buf + len_so_far, JET_STRING_RAM - len_so_far);
+  aJsonStringStream stringStream(NULL, buf + len_so_far, JET_MESSAGE_RAM - len_so_far);
   aJson.print(val, &stringStream);
   strcat(buf, "}}");
   send(buf);
@@ -167,14 +183,44 @@ void JetPeer::change(const char* path, aJsonObject* val) {
   value_request(path, val, JET_REQ_CHANGE);
 }
 
+void JetPeer::fetch_request(int fetch_id, aJsonObject* fetch_expr) {
+  char* buf = string_buf;
+  strcpy_P(buf, (char*)pgm_read_word(&(jet_strings[JET_REQ_FETCH])));
+  int len_so_far = strlen(buf);
+  aJson.addItemToObject(fetch_expr, "id", aJson.createItem(fetch_id));
+  aJsonStringStream stringStream(NULL, buf + len_so_far, JET_MESSAGE_RAM - len_so_far);
+  aJson.print(fetch_expr, &stringStream);
+  strcat(buf, "}");
+  send(buf);
+}
+
+JetFetcher* JetPeer::fetch(const char* path, fetch_handler_t handler, void* context) {
+  JetFetcher& fetcher = _fetchers[_fetch_cnt];
+  fetcher._handler = handler;
+  fetcher._context = context;
+  aJsonObject* fetch_expr = aJson.createObject();
+  aJsonObject* path_obj = aJson.createObject();
+  aJson.addItemToObject(path_obj, "equals", aJson.createItem(path));
+  aJson.addItemToObject(fetch_expr, "path", path_obj);
+  fetch_request(_fetch_cnt, fetch_expr);
+  _fetch_cnt++;
+  return &fetcher;
+}
+
+
 bool default_set_handler(aJsonObject* value, void* context) {
   return false;
 }
 
-JetState* JetPeer::state(const char* path, aJsonObject* val) {
+JetState* JetPeer::state(const char* path, aJsonObject* val, set_handler_t handler, void* context) {
   JetState& state = _states[_state_cnt];
   state._path = path;
-  state._handler = default_set_handler;
+  if (handler) {
+    state._handler = handler;
+    state._context = context;
+  } else {
+    state._handler = default_set_handler;
+  }
   state._peer = this;
   add(path, val);
   _state_cnt++;
@@ -183,9 +229,4 @@ JetState* JetPeer::state(const char* path, aJsonObject* val) {
 
 void JetState::value(aJsonObject* val) {
   _peer->change(_path, val);
-}
-
-void JetState::set_handler(set_handler_t handler, void* context) {
-  _handler = handler;
-  _context = context;
 }

@@ -7,19 +7,33 @@
 #include "Client.h"
 
 #define JET_NUM_STATES 3
+#define JET_NUM_FETCHERS 3
+
+#define JET_JSON_RAM 256
+#define JET_MESSAGE_RAM 128
 
 struct JetPeer;
 typedef bool (*set_handler_t)(aJsonObject* val, void* context);
-typedef void (*fetch_handler_t)(const char* path, const char* event, aJsonObject* val);
+typedef void (*fetch_handler_t)(const char* path, const char* event, aJsonObject* val, void* context);
 
 struct JetState {
   friend class JetPeer;
   void value(aJsonObject* val);
-  void set_handler(set_handler_t, void* context = NULL);
 private:
   JetState(){};
   const char* _path;
   set_handler_t _handler;
+  void* _context;
+  JetPeer* _peer;
+};
+
+struct JetFetcher {
+  friend class JetPeer;
+  //void unfetch();
+private:
+  JetFetcher(){};
+  const char* _id;
+  fetch_handler_t _handler;
   void* _context;
   JetPeer* _peer;
 };
@@ -29,9 +43,11 @@ struct JetPeer {
   JetPeer();
   void init(Client& sock);
   void loop(void);
-  JetState* state(const char* path, aJsonObject* val);
+  JetState* state(const char* path, aJsonObject* val, set_handler_t handler = NULL, void *context = NULL);
+  JetFetcher* fetch(const char* path, fetch_handler_t handler, void* context = NULL);
 private:
   void value_request(const char* path, aJsonObject* val, int req_id);
+  void fetch_request(int fetch_id, aJsonObject* fetch_expr);
   void add(const char* path, aJsonObject* val);
   void change(const char* path, aJsonObject* val);
   void send(aJsonObject *msg);
@@ -41,8 +57,9 @@ private:
 
   Client* _sock;
   uint32_t _req_cnt;
-  JetState _states[3];
-
+  JetState _states[JET_NUM_STATES];
+  JetFetcher _fetchers[JET_NUM_FETCHERS];
+  int _fetch_cnt;
   int _state_cnt;
 };
 
