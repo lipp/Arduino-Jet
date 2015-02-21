@@ -20,10 +20,18 @@ which does not use malloc and free. DONT'T use aJson side-by-side!
 // create a global peer
 JetPeer peer;
 
+// create global states (for sensors)
+JetState* analogState;
+
 // define a function which is invoked, whenever
 // someone tries to change your state.
 bool setLedBrightness(aJsonObject* val, void* context) {
-  setLedBrightness(val->valueint);
+  if (val->valueint >= 0 && val->valueint <= 100) {
+    setLedBrightness(val->valueint);
+    return true;
+  } else {
+    return false;
+  }
 }
 
 void setup() {
@@ -36,6 +44,16 @@ void setup() {
 
   // create a state with initial value and set callback function
   peer.state("led/brightness", aJson.createItem(100), setLedBrightness);
+
+  // create read-only states for sensors (providing no callback function)
+  analogState = peer.state("analog/1", aJson.createItem(analogRead(0)));
+
+}
+
+void loop() {
+  // post value changes
+  analogState->value(aJson.createItem(analogRead(0)));
+  delay(100);
 }
 ```
 
