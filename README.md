@@ -11,6 +11,34 @@ feature of other [Jet](http://jetbus.io) implementations.
 This library contains a modified version of [aJson](https://github.com/interactive-matter/aJson),
 which does not use malloc and free. DONT'T use aJson side-by-side!
 
+# Quickstart example
+
+```c++
+// add library
+#include <ArduinoJetPeer.h>
+
+// create a global peer
+JetPeer peer;
+
+// define a function which is invoked, whenever
+// someone tries to change your state.
+bool setLedBrightness(aJsonObject* val, void* context) {
+  setLedBrightness(val->valueint);
+}
+
+void setup() {
+  ...
+  // connect to jet daemon
+  socket.connect(daemon_ip, 11122);
+
+  // pass client socket to peer
+  peer.init(socket);
+
+  // create a state with initial value and set callback function
+  peer.state("led/brightness", aJson.createItem(100), setLedBrightness);
+}
+```
+
 # Setup
 
 1. Clone this repo to your Arduino/libraries folder (on OSX ~/Documents/Arduino/libraries).
@@ -30,7 +58,9 @@ which does not use malloc and free. DONT'T use aJson side-by-side!
   The default ports of the Jet Daemon are 11123 (websocket) and 11122 (raw).
   Load the `JetExample` sketch.
 
-4. Change the ip/server name to match the machine where the Daemon runs.
+4. Load contained example "JetExample". This example uses cc3000 wifi shield.
+
+   Change the ip/server name to match the machine where the Daemon runs.
 
   ```c++
   #define WLAN_SSID  "YOUR_SSID"
@@ -38,7 +68,7 @@ which does not use malloc and free. DONT'T use aJson side-by-side!
   #define JET_DAEMON "YOUR_IP"
   ```
 
-5. Compile and upload the sketch (uses cc3000 Wifi)
+5. Compile and upload the sketch
 
 6. Open [Radar](http://jetbus.io/radar.html)
 
