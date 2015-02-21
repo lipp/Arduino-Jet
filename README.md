@@ -27,7 +27,7 @@ JetState* analogState;
 // someone tries to change your state.
 bool setLedBrightness(aJsonObject* val, void* context) {
   if (val->valueint >= 0 && val->valueint <= 100) {
-    setLedBrightness(val->valueint);
+    // do what is required to "really" change the led brightness
     return true;
   } else {
     return false;
