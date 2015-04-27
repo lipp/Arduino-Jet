@@ -54,6 +54,7 @@ void setup() {
 }
 
 void loop() {
+  peer.loop();
   // post value changes
   analogState->value(aJson.createItem(analogRead(0)));
   delay(100);
