@@ -97,8 +97,16 @@ void loop() {
 ## with Serial Port
 
 4a. Load contained example "JetExample-Serial".
-4b. Compile and upload the sketch 
-4c. Start the provided serial-to-socket script:
+
+4b. Compile and upload the sketch
+
+4c. Install serialport node module
+	
+	```sh
+	$ sudo npm install -g serialport
+	```
+
+4d. Start the provided serial-to-socket script:
 
 	```sh
 	$ node serial-bridge.js
