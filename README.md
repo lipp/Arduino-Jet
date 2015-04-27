@@ -1,9 +1,12 @@
 # Arduino-Jet
 Jet Peer lib for Arduino (http://jetbus.io).
 
-Arduino-Jet enables you to easily integrate distributed web-capable realtime
+Arduino-Jet enables you to easily integrate distributed web-capable Jet realtime
 communication with your Arduino. See [Jet Homepage](http://jetbus.io) for more
 details and a Live Control Center called ["Radar"](http://jetbus.io/radar.html).
+
+To communicate you need either a ethernet or wifi shield or just use the Arduino's
+Serial Port.
 
 As the Arduino's resources are rather limited, this lib does not implement every
 feature of other [Jet](http://jetbus.io) implementations.
@@ -56,9 +59,9 @@ void loop() {
   delay(100);
 }
 ```
-
+ 
 # Setup
-
+ 
 1. Clone this repo to your Arduino/libraries folder (on OSX ~/Documents/Arduino/libraries).
 
 2. Install the node.js Daemon on your host machine or your "cloud" server:
@@ -76,7 +79,9 @@ void loop() {
   The default ports of the Jet Daemon are 11123 (websocket) and 11122 (raw).
   Load the `JetExample` sketch.
 
-4. Load contained example "JetExample". This example uses cc3000 wifi shield.
+## with cc3000 wifi
+
+4a. Load contained example "JetExample-cc3000". This example uses cc3000 wifi shield.
 
    Change the ip/server name to match the machine where the Daemon runs.
 
@@ -86,9 +91,19 @@ void loop() {
   #define JET_DAEMON "YOUR_IP"
   ```
 
-5. Compile and upload the sketch
+4b. Compile and upload the sketch
 
-6. Open [Radar](http://jetbus.io/radar.html)
+## with Serial Port
+
+4a. Load contained example "JetExample-Serial".
+4b. Compile and upload the sketch 
+4c. Start the provided serial-to-socket script:
+
+	```sh
+	$ node serial-bridge.js
+	```
+
+5. Open [Radar](http://jetbus.io/radar.html)
 
   Enter `ws://localhost:11123` as the Daemon url.
   Press "connect", press "fetch", watch your analog data.
